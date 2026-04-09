@@ -12,6 +12,7 @@ from starlette.types import Scope, Receive, Send
 from starlette.requests import Request
 from starlette.middleware import Middleware
 
+import mcp.types
 from mcp.types import ToolAnnotations
 
 from fastmcp import FastMCP
@@ -159,6 +160,13 @@ server = SecureFastMCP(
     name="google_workspace",
     auth=None,
     instructions=_server_instructions,
+    icons=[
+        mcp.types.Icon(
+            src="https://ao-google-workspace.fly.dev/favicon.png",
+            mimeType="image/png",
+            sizes=["120x120"],
+        )
+    ],
 )
 
 # Add the AuthInfo middleware to inject authentication into FastMCP context
@@ -517,6 +525,10 @@ def configure_server_for_http():
                     client_storage=client_storage,
                     jwt_signing_key=jwt_signing_key,
                     allowed_client_redirect_uris=allowed_client_redirect_uris,
+                    extra_authorize_params={
+                        "enable_granular_consent": "true",
+                        "include_granted_scopes": "true",
+                    },
                 )
                 if provider.client_registration_options is not None:
                     # Keep protocol-level auth limited to base identity scopes, but
@@ -557,6 +569,17 @@ def configure_server_for_http():
 def get_auth_provider() -> Optional[GoogleProvider]:
     """Gets the global authentication provider instance."""
     return _auth_provider
+
+
+@server.custom_route("/favicon.ico", methods=["GET"])
+@server.custom_route("/favicon.png", methods=["GET"])
+async def favicon(request: Request):
+    import pathlib
+    from starlette.responses import Response
+    favicon_path = pathlib.Path(__file__).parent / "favicon.png"
+    if favicon_path.exists():
+        return Response(content=favicon_path.read_bytes(), media_type="image/png")
+    return Response(status_code=404)
 
 
 @server.custom_route("/", methods=["GET"])
