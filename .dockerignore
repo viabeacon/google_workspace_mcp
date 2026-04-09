@@ -23,6 +23,11 @@ dist/
 mcp_server_debug.log
 .credentials/
 
+# Secrets and environment files
+.env
+.env.*
+client_secret.json
+
 # Cache and temporary files
 __pycache__/
 *.pyc

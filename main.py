@@ -378,7 +378,7 @@ def main():
     # Set port and base URI once for reuse throughout the function
     port = int(os.getenv("PORT", os.getenv("WORKSPACE_MCP_PORT", 8000)))
     base_uri = os.getenv("WORKSPACE_MCP_BASE_URI", "http://localhost")
-    host = os.getenv("WORKSPACE_MCP_HOST", "0.0.0.0")
+    host = os.getenv("WORKSPACE_MCP_HOST", "127.0.0.1")
     external_url = os.getenv("WORKSPACE_EXTERNAL_URL")
     display_url = external_url if external_url else f"{base_uri}:{port}"
 
@@ -408,9 +408,9 @@ def main():
     # Redact client secret for security
     client_secret = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", "Not Set")
     redacted_secret = (
-        f"{client_secret[:4]}...{client_secret[-4:]}"
-        if len(client_secret) > 8
-        else "Invalid or too short"
+        f"{client_secret[:3]}...{client_secret[-3:]}"
+        if len(client_secret) > 12
+        else "****" if client_secret != "Not Set" else "Not Set"
     )
 
     # Determine credentials directory (same logic as credential_store.py)

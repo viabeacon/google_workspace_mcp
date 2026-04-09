@@ -95,10 +95,14 @@ env:
   # GOOGLE_PSE_ENGINE_ID: ""
 
 # Secret configuration for sensitive data
+# SECURITY: Do NOT put real credentials in this file if it is committed to git.
+# Instead, use --set at install time or create the Secret resource manually:
+#   helm install workspace-mcp ./helm-chart/workspace-mcp \
+#     --set secrets.googleOAuth.clientId=YOUR_ID \
+#     --set secrets.googleOAuth.clientSecret=YOUR_SECRET
 secrets:
   # Google OAuth credentials (required)
   googleOAuth:
-    # Set these values or create secret manually
     clientId: ""
     clientSecret: ""
     # Optional: default user email for single-user setups

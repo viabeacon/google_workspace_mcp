@@ -6,8 +6,8 @@ primary_region = 'dfw'
 [env]
   WORKSPACE_MCP_CREDENTIALS_DIR = '/data/store_creds'
   WORKSPACE_EXTERNAL_URL = 'https://ao-google-workspace.fly.dev'
-  TOOLS = 'drive docs sheets chat slides'
-  TOOL_TIER = 'core'
+  TOOLS = 'drive docs sheets slides'
+  TOOL_TIER = 'complete'
 
 [http_service]
   internal_port = 8000

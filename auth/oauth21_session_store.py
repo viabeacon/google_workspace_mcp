@@ -220,6 +220,9 @@ def extract_session_from_headers(headers: Dict[str, str]) -> Optional[str]:
 # =============================================================================
 
 
+_DEFAULT_MAX_SESSIONS = 10_000
+
+
 class OAuth21SessionStore:
     """
     Global store for OAuth 2.1 authenticated sessions.
@@ -229,10 +232,15 @@ class OAuth21SessionStore:
     It also maintains a mapping from FastMCP session IDs to user emails.
 
     Security: Sessions are bound to specific users and can only access
-    their own credentials.
+    their own credentials. The store enforces a maximum session count
+    to prevent memory exhaustion from unbounded growth.
     """
 
-    def __init__(self, oauth_state_file: Optional[str] = None):
+    def __init__(
+        self,
+        oauth_state_file: Optional[str] = None,
+        max_sessions: int = _DEFAULT_MAX_SESSIONS,
+    ):
         self._sessions: Dict[str, Dict[str, Any]] = {}
         self._mcp_session_mapping: Dict[
             str, str
@@ -243,6 +251,20 @@ class OAuth21SessionStore:
         self._oauth_states: Dict[str, Dict[str, Any]] = {}
         self._oauth_state_file = oauth_state_file or _get_default_oauth_state_file()
         self._lock = RLock()
+        self._max_sessions = max_sessions
+
+    def _evict_session_locked(self, user_email: str) -> None:
+        """Remove a session and its associated mappings. Caller must hold lock."""
+        session_info = self._sessions.pop(user_email, None)
+        if not session_info:
+            return
+        mcp_sid = session_info.get("mcp_session_id")
+        oauth_sid = session_info.get("session_id")
+        if mcp_sid:
+            self._mcp_session_mapping.pop(mcp_sid, None)
+            self._session_auth_binding.pop(mcp_sid, None)
+        if oauth_sid:
+            self._session_auth_binding.pop(oauth_sid, None)
 
     def _ensure_oauth_state_directory(self) -> None:
         state_dir = os.path.dirname(self._oauth_state_file)
@@ -631,6 +653,22 @@ class OAuth21SessionStore:
                         logger.debug(
                             f"Removed stale OAuth session binding: {old_session_id}"
                         )
+
+            # Evict oldest session if at capacity (skip if updating existing user)
+            if (
+                user_email not in self._sessions
+                and len(self._sessions) >= self._max_sessions
+            ):
+                oldest_email = min(
+                    self._sessions,
+                    key=lambda e: self._sessions[e].get("expiry") or datetime.min,
+                )
+                logger.warning(
+                    "Session store at capacity (%d); evicting oldest session: %s",
+                    self._max_sessions,
+                    oldest_email,
+                )
+                self._evict_session_locked(oldest_email)
 
             session_info = {
                 "access_token": access_token,

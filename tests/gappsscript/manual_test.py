@@ -24,7 +24,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 from googleapiclient.discovery import build
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
-import pickle
+import json
 
 
 SCOPES = [
@@ -42,7 +42,7 @@ os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 # Default paths (can be overridden via environment variables)
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 DEFAULT_CLIENT_SECRET = os.path.join(PROJECT_ROOT, "client_secret.json")
-DEFAULT_TOKEN_PATH = os.path.join(PROJECT_ROOT, "test_token.pickle")
+DEFAULT_TOKEN_PATH = os.path.join(PROJECT_ROOT, "test_token.json")
 
 
 def get_credentials():
@@ -63,8 +63,9 @@ def get_credentials():
     )
 
     if os.path.exists(token_path):
-        with open(token_path, "rb") as token:
-            creds = pickle.load(token)
+        with open(token_path, "r") as token:
+            from google.oauth2.credentials import Credentials
+            creds = Credentials.from_authorized_user_info(json.load(token))
 
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
@@ -99,8 +100,8 @@ def get_credentials():
             flow.fetch_token(authorization_response=redirect_response)
             creds = flow.credentials
 
-        with open(token_path, "wb") as token:
-            pickle.dump(creds, token)
+        with open(token_path, "w") as token:
+            json.dump(json.loads(creds.to_json()), token, indent=2)
 
     return creds
 

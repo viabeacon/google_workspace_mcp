@@ -133,18 +133,20 @@ def _find_any_credentials(
     return None, None
 
 
-def save_credentials_to_session(session_id: str, credentials: Credentials):
-    """Saves user credentials using OAuth21SessionStore."""
-    # Get user email from credentials if possible
-    user_email = None
-    if credentials and credentials.id_token:
-        try:
-            decoded_token = jwt.decode(
-                credentials.id_token, options={"verify_signature": False}
-            )
-            user_email = decoded_token.get("email")
-        except Exception as e:
-            logger.debug(f"Could not decode id_token to get email: {e}")
+def save_credentials_to_session(
+    session_id: str, credentials: Credentials, verified_email: Optional[str] = None
+):
+    """Saves user credentials using OAuth21SessionStore.
+
+    Args:
+        session_id: MCP session ID to associate with the credentials.
+        credentials: Google Credentials object to store.
+        verified_email: Pre-verified user email. Must be obtained from a
+            trusted source (e.g. Google userinfo API or a verified OAuth
+            callback). The id_token is NOT decoded as a fallback because
+            unverified JWTs must not be trusted for credential binding.
+    """
+    user_email = verified_email
 
     if user_email:
         store = get_oauth21_session_store()
@@ -495,11 +497,13 @@ async def start_auth_flow(
     # Note: Caller should ensure OAuth callback is available before calling this function
 
     try:
-        if "OAUTHLIB_INSECURE_TRANSPORT" not in os.environ and (
-            "localhost" in redirect_uri or "127.0.0.1" in redirect_uri
-        ):  # Use passed redirect_uri
+        if (
+            "OAUTHLIB_INSECURE_TRANSPORT" not in os.environ
+            and os.getenv("OAUTH2_ALLOW_INSECURE_TRANSPORT", "false").lower() == "true"
+            and ("localhost" in redirect_uri or "127.0.0.1" in redirect_uri)
+        ):
             logger.warning(
-                "OAUTHLIB_INSECURE_TRANSPORT not set. Setting it for localhost/local development."
+                "Setting OAUTHLIB_INSECURE_TRANSPORT=1 (OAUTH2_ALLOW_INSECURE_TRANSPORT is enabled for localhost)."
             )
             os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
@@ -623,10 +627,13 @@ async def handle_auth_callback(
                 "The 'client_secrets_path' parameter is deprecated. Use GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET environment variables instead."
             )
 
-        # Allow HTTP for localhost in development
-        if "OAUTHLIB_INSECURE_TRANSPORT" not in os.environ:
+        # Allow HTTP for localhost only when explicitly opted in
+        if (
+            "OAUTHLIB_INSECURE_TRANSPORT" not in os.environ
+            and os.getenv("OAUTH2_ALLOW_INSECURE_TRANSPORT", "false").lower() == "true"
+        ):
             logger.warning(
-                "OAUTHLIB_INSECURE_TRANSPORT not set. Setting it for localhost development."
+                "Setting OAUTHLIB_INSECURE_TRANSPORT=1 (OAUTH2_ALLOW_INSECURE_TRANSPORT is enabled)."
             )
             os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
@@ -815,7 +822,7 @@ async def handle_auth_callback(
 
         # If session_id is provided, also save to session cache for compatibility
         if session_id:
-            save_credentials_to_session(session_id, credentials)
+            save_credentials_to_session(session_id, credentials, verified_email=user_google_email)
 
         return user_google_email, credentials
 
@@ -1014,7 +1021,7 @@ def get_credentials(
                 )
                 if not skip_session_cache:
                     save_credentials_to_session(
-                        session_id, credentials
+                        session_id, credentials, verified_email=user_google_email
                     )  # Cache for current session
 
         if not credentials:
@@ -1100,7 +1107,7 @@ def get_credentials(
 
             if session_id and (persist_succeeded or is_stateless_mode()):
                 # Update session cache if it was the source or is active
-                save_credentials_to_session(session_id, credentials)
+                save_credentials_to_session(session_id, credentials, verified_email=user_google_email)
         except RefreshError as e:
             logger.warning(
                 f"[get_credentials] RefreshError - token expired/revoked: {e}. User: '{user_google_email}', Session: '{session_id}'"
