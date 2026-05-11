@@ -103,7 +103,7 @@ def test_get_credentials_skips_session_update_when_refresh_persist_fails(monkeyp
     )
     monkeypatch.setattr(
         "auth.google_auth.save_credentials_to_session",
-        lambda *args: session_cache_writes.append(args),
+        lambda *args, **kwargs: session_cache_writes.append(args),
     )
 
     result = get_credentials(
